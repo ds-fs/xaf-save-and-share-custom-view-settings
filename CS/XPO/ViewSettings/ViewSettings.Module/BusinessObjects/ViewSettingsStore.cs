@@ -8,14 +8,14 @@ using System.ComponentModel;
 using DevExpress.Xpo;
 
 namespace ViewSettingsSolution.Module.BusinessObjects {
-    public class SettingsStore : BaseObject {
+    public class ViewSettingsStore : BaseObject {
         private string xml;
         private string name;
         private string ownerId;
         private string viewId;
         private Boolean isShared;
         private IObjectSpace objectSpace;
-        public SettingsStore(Session session)
+        public ViewSettingsStore(Session session)
             : base(session) {
         }
         [Browsable(false)]
