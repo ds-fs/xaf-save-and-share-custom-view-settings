@@ -1,60 +1,57 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using DevExpress.ExpressApp.Utils;
+using DevExpress.Persistent.Base;
 using DevExpress.Persistent.BaseImpl;
-using DevExpress.ExpressApp;
-using System.ComponentModel;
 using DevExpress.Xpo;
 
-namespace ViewSettingsSolution.Module.BusinessObjects {
-    public class ViewSettingsStore : BaseObject {
-        private string xml;
-        private string name;
-        private string ownerId;
-        private string viewId;
-        private Boolean isShared;
-        private IObjectSpace objectSpace;
-        public ViewSettingsStore(Session session)
-            : base(session) {
-        }
-        [Browsable(false)]
-        [Size(SizeAttribute.Unlimited)]
-        public string Xml {
-            get {
-                return xml;
-            }
-            set {
-                SetPropertyValue(nameof(Xml), ref xml, value);
-            }
-        }
-        public string Name {
-            get {
-                return name;
-            }
-            set {
-                SetPropertyValue(nameof(Name), ref name, value);
-            }
-        }
-        [Browsable(false)]
-        public string OwnerId {
-            get { return ownerId; }
-            set { SetPropertyValue(nameof(OwnerId), ref ownerId, value); }
-        }
-        public Boolean IsShared {
-            get {
-                return isShared;
-            }
-            set {
-                SetPropertyValue(nameof(IsShared), ref isShared, value);
-            }
-        }
-        [Browsable(false)]
-        public string ViewId {
-            get { return viewId; }
-            set { SetPropertyValue<string>(nameof(ViewId), ref viewId, value); }
-        }
+namespace ViewSettingsSolution.Module.BusinessObjects;
 
-       
+public class ViewSettingsStore : BaseObject
+{
+    Type _targetObjectType;
+    private string _xml;
+    private string _name;
+    private string _ownerId;
+    private string _viewId;
+    private bool _isShared;
+
+    public ViewSettingsStore(Session session) : base(session)
+    {
+    }
+
+    [VisibleInDashboards(false), VisibleInDetailView(false), VisibleInListView(false), VisibleInLookupListView(false), VisibleInReports(false)]
+    [Size(SizeAttribute.Unlimited)]
+    public string Xml
+    {
+        get => _xml;
+        set => SetPropertyValue(nameof(Xml), ref _xml, value);
+    }
+    public string Name
+    {
+        get => _name;
+        set => SetPropertyValue(nameof(Name), ref _name, value);
+    }
+    [VisibleInDashboards(false), VisibleInDetailView(false), VisibleInListView(false), VisibleInLookupListView(false), VisibleInReports(false)]
+    public string OwnerId
+    {
+        get => _ownerId;
+        set => SetPropertyValue(nameof(OwnerId), ref _ownerId, value);
+    }
+    public bool IsShared
+    {
+        get => _isShared;
+        set => SetPropertyValue(nameof(IsShared), ref _isShared, value);
+    }
+    [VisibleInDashboards(false), VisibleInDetailView(false), VisibleInListView(false), VisibleInLookupListView(false), VisibleInReports(false)]
+    public string ViewId
+    {
+        get => _viewId;
+        set => SetPropertyValue<string>(nameof(ViewId), ref _viewId, value);
+    }
+    [ValueConverter(typeof(TypeToStringConverter))]
+    [VisibleInDashboards(false), VisibleInDetailView(false), VisibleInListView(false), VisibleInLookupListView(false), VisibleInReports(false)]
+    public Type TargetObjectType
+    {
+        get => _targetObjectType;
+        set => SetPropertyValue(nameof(TargetObjectType), ref _targetObjectType, value);
     }
 }
