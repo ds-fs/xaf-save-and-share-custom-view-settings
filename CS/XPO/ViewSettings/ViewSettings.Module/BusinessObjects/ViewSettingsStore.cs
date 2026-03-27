@@ -1,4 +1,5 @@
-﻿using DevExpress.ExpressApp.Utils;
+﻿using DevExpress.ExpressApp.DC;
+using DevExpress.ExpressApp.Utils;
 using DevExpress.Persistent.Base;
 using DevExpress.Persistent.BaseImpl;
 using DevExpress.Xpo;
@@ -36,6 +37,7 @@ public class ViewSettingsStore : BaseObject
         get => _ownerId;
         set => SetPropertyValue(nameof(OwnerId), ref _ownerId, value);
     }
+    [XafDisplayName("Zentrale Ansicht")]
     public bool IsShared
     {
         get => _isShared;

@@ -2,57 +2,77 @@
 using DevExpress.ExpressApp;
 using DevExpress.ExpressApp.Actions;
 using DevExpress.ExpressApp.Model;
+using DevExpress.ExpressApp.Security;
 using DevExpress.ExpressApp.Templates;
 using DevExpress.ExpressApp.Utils;
 using DevExpress.Persistent.Base;
 using DevExpress.Xpo;
+using ViewSettings.Module.BusinessObjects;
 using ViewSettingsSolution.Module.BusinessObjects;
 
 namespace ViewSettingsSolution.Module.Controllers;
 
 public class ViewVariantsController : ViewController
 {
-    private SimpleAction DeleteViewVariantAction;
+
+    private SingleChoiceAction ViewVariantsCommandsAction;
+
     private PopupWindowShowAction CreateViewVariantAction;
     private SingleChoiceAction SelectViewVariantAction;
-    private SimpleAction UpdateCurrentViewVariantAction;
-    private SimpleAction UpdateDefaultSettingsWithSelectedVariantAction;
     private string defaultUserSettings;
     private string currentUserId;
     private bool isLayoutProcessed = false;
     private bool isDefaultViewSelected = false;
     private ChoiceActionItem lastSelectedItem = null;
-   
+    private ChoiceActionItem createViewVariant;
+    private ChoiceActionItem updateViewVariant;
+    private ChoiceActionItem editViewVariantItem;
+    private ChoiceActionItem deleteViewVariant;
+    private ChoiceActionItem addWithCurrentSelectionViewVariantItem;
+    private ChoiceActionItem editAddItemsViewVariantItem;
+    private ChoiceActionItem editExecludeItemsViewVariantItem;
+
 
 
     public ViewVariantsController()
     {
-        this.TargetViewNesting = Nesting.Root;
-
-        this.SelectViewVariantAction = new SingleChoiceAction(this, "Ansicht auswählen", PredefinedCategory.View) { PaintStyle = ActionItemPaintStyle.Image };
-        this.SelectViewVariantAction.Execute += new SingleChoiceActionExecuteEventHandler(this.SelectViewVariantAction_Execute);
-
-        this.CreateViewVariantAction = new PopupWindowShowAction(this, "Als neue Ansicht speichern", PredefinedCategory.View) { ImageName = "Action_New" };
-        this.CreateViewVariantAction.CustomizePopupWindowParams += new CustomizePopupWindowParamsEventHandler(this.CreateViewVariantAction_CustomizePopupWindowParams);
-        this.CreateViewVariantAction.Execute += new PopupWindowShowActionExecuteEventHandler(this.CreateViewVariantAction_Execute);
+        TargetViewNesting = Nesting.Root;
 
 
-        this.UpdateCurrentViewVariantAction = new SimpleAction(this, "Aktuelle Ansicht aktualisieren", PredefinedCategory.View) { ImageName = "Update" };
-        this.UpdateCurrentViewVariantAction.Execute += new SimpleActionExecuteEventHandler(this.UpdateCurrentViewVariantAction_Execute);
-
-        this.UpdateDefaultSettingsWithSelectedVariantAction = new SimpleAction(this, "Standardansicht mit ausgewählter Ansicht aktualisieren", PredefinedCategory.View) { ImageName = "Action_Copy" };
-        UpdateDefaultSettingsWithSelectedVariantAction.Execute += UpdateDefaultSettingsWithSelectedVariantAction_Execute;
-
-        this.DeleteViewVariantAction = new SimpleAction(this, "Ansicht löschen", PredefinedCategory.View) { ImageName = "Action_Delete" };
-        this.DeleteViewVariantAction.Execute += new SimpleActionExecuteEventHandler(this.DeleteViewVariantAction_Execute);
+        ViewVariantsCommandsAction = new SingleChoiceAction(this, $"{GetType().Name}.{nameof(ViewVariantsCommandsAction)}", PredefinedCategory.View)
+        { Caption = "Persönliche Ansichten", ImageName = "Navigation_Item_ViewVariant", ItemType = SingleChoiceActionItemType.ItemIsOperation, ShowItemsOnClick = true }; // , ConfirmationMessage = "Möchten Sie diese Aktion ausführen?" };
+        ViewVariantsCommandsAction.Execute += ViewVariantsCommandsAction_Execute;
 
 
-        this.Actions.Add(this.SelectViewVariantAction);
-        this.Actions.Add(this.CreateViewVariantAction);
-        this.Actions.Add(this.UpdateCurrentViewVariantAction);
-        this.Actions.Add(this.UpdateDefaultSettingsWithSelectedVariantAction);
-        this.Actions.Add(this.DeleteViewVariantAction);
+        createViewVariant = new ChoiceActionItem("Als neue Ansicht speichern", null) { ImageName = "Action_New" };
+        updateViewVariant = new ChoiceActionItem("Ansicht speichern", null) { ImageName = "Action_Save", BeginGroup = true };
+        editViewVariantItem = new ChoiceActionItem("Ansicht umbenennen", null) { ImageName = "Action_Edit" };
+        deleteViewVariant = new ChoiceActionItem("Ansicht löschen", null) { ImageName = "Action_Delete", BeginGroup = true };
+
+
+        addWithCurrentSelectionViewVariantItem = new ChoiceActionItem("Neue Ansicht aus aktueller Markierung", null) { BeginGroup = true };
+        editAddItemsViewVariantItem = new ChoiceActionItem("Markierung in Ansicht einschließen", null);
+        editExecludeItemsViewVariantItem = new ChoiceActionItem("Markierung aus aktueller Ansicht ausschließen", null);
+
+        ViewVariantsCommandsAction.Items.Add(createViewVariant);
+        ViewVariantsCommandsAction.Items.Add(updateViewVariant);
+        ViewVariantsCommandsAction.Items.Add(editViewVariantItem);
+        ViewVariantsCommandsAction.Items.Add(deleteViewVariant);
+
+        ViewVariantsCommandsAction.Items.Add(addWithCurrentSelectionViewVariantItem);
+        ViewVariantsCommandsAction.Items.Add(editAddItemsViewVariantItem);
+        ViewVariantsCommandsAction.Items.Add(editExecludeItemsViewVariantItem);
+
+        SelectViewVariantAction = new SingleChoiceAction(this, $"{GetType().Name}.{nameof(SelectViewVariantAction)}", PredefinedCategory.View) { PaintStyle = ActionItemPaintStyle.Image };
+        SelectViewVariantAction.Execute += SelectViewVariantAction_Execute;
+
+        CreateViewVariantAction = new PopupWindowShowAction(this, $"{GetType().Name}.{nameof(CreateViewVariantAction)}", nameof(ViewVariantsController)) { ImageName = "Action_New" };
+        CreateViewVariantAction.Execute += CreateViewVariantAction_Execute;
+
+        Actions.Add(ViewVariantsCommandsAction);
+        Actions.Add(SelectViewVariantAction);
     }
+
     protected override void OnActivated()
     {
         base.OnActivated();
@@ -68,10 +88,63 @@ public class ViewVariantsController : ViewController
     protected override void OnDeactivated()
     {
         View?.ModelSaving -= View_ModelSaving;
+        if (!isLayoutProcessed)
+        {
+            ViewVariantsCommandsAction?.Execute -= ViewVariantsCommandsAction_Execute;
+            SelectViewVariantAction?.Execute -= SelectViewVariantAction_Execute;
+            CreateViewVariantAction?.Execute -= CreateViewVariantAction_Execute;
+        }
         base.OnDeactivated();
     }
 
+    protected bool ShowDeleteConfirmationMessage(string message = "Möchten Sie diese Ansicht wirklich löschen?")
+    {
+        return true;
+    }
 
+    private void ViewVariantsCommandsAction_Execute(object sender, SingleChoiceActionExecuteEventArgs e)
+    {
+        switch (e.SelectedChoiceActionItem)
+        {
+            case var _ when e.SelectedChoiceActionItem == createViewVariant:
+                ShowPopupWindow(e);
+                break;
+            case var _ when e.SelectedChoiceActionItem == updateViewVariant:
+                UpdateCurrentView();
+                break;
+            case var _ when e.SelectedChoiceActionItem == editViewVariantItem:
+                ShowPopupWindow(e);
+                break;
+            case var _ when e.SelectedChoiceActionItem == deleteViewVariant:
+                if (ShowDeleteConfirmationMessage())
+                    DeleteViewVariant();
+                break;
+            case var _ when e.SelectedChoiceActionItem == addWithCurrentSelectionViewVariantItem:
+                // Neue Ansicht aus aktueller Markierung erstellen
+                break;
+            case var _ when e.SelectedChoiceActionItem == editAddItemsViewVariantItem:
+                // Markierung in Ansicht einschließen
+                break;
+            case var _ when e.SelectedChoiceActionItem == editExecludeItemsViewVariantItem:
+                // Markierung aus aktueller Ansicht ausschließen
+                break;
+        }
+    }
+    private void ShowPopupWindow(SingleChoiceActionExecuteEventArgs e)
+    {
+        var os = Application.CreateObjectSpace<ViewSettingsStore>();
+        var param = CreateViewVariantAction.GetPopupWindowParams();
+        if (e.SelectedChoiceActionItem == editViewVariantItem)
+        {
+            var store = os.GetObject(SelectViewVariantAction.SelectedItem?.Data as ViewSettingsStore);
+            param.View = Application.CreateDetailView(os, store);
+        }
+        else
+            param.View = Application.CreateDetailView(os, os.CreateObject<ViewSettingsStore>());
+        e.ShowViewParameters.CreatedView = param.View;
+        e.ShowViewParameters.Controllers.Add(param.DialogController);
+        e.ShowViewParameters.TargetWindow = TargetWindow.NewModalWindow;
+    }
     private void CreateViewVariantAction_CustomizePopupWindowParams(object sender, CustomizePopupWindowParamsEventArgs e)
     {
         var objectSpace = e.Application.CreateObjectSpace<ViewSettingsStore>();
@@ -80,21 +153,24 @@ public class ViewVariantsController : ViewController
     private void CreateViewVariantAction_Execute(object sender, PopupWindowShowActionExecuteEventArgs e)
     {
         var store = (ViewSettingsStore)e.PopupWindowViewCurrentObject;
-        store.OwnerId = currentUserId;
-        store.ViewId = View.Id;
-        store.TargetObjectType = this.TargetObjectType ?? View.ObjectTypeInfo.Type;
+        if (store.Session.IsNewObject(store))
+        {
+            store.OwnerId = currentUserId;
+            store.ViewId = View.Id;
+            store.TargetObjectType = this.TargetObjectType ?? View.ObjectTypeInfo.Type;
+        }
         SaveViewVariantToXML(store);
         isDefaultViewSelected = false;
         UpdateActions(store.Name);
     }
-    private void DeleteViewVariantAction_Execute(object sender, SimpleActionExecuteEventArgs e)
+    private void DeleteViewVariant()
     {
-        var currentLayoutItem = SelectViewVariantAction.SelectedItem.Data as ViewSettingsStore;
-        if (TryLoadViewVariantFromXML(defaultUserSettings))
+        var store = SelectViewVariantAction.SelectedItem.Data as ViewSettingsStore;
+        if (store != null && TryLoadViewVariantFromXML(defaultUserSettings))
         {
             using var os = Application.CreateObjectSpace<ViewSettingsStore>();
-            var currentLayoutItemInOs = os.GetObject(currentLayoutItem);
-            os.Delete(currentLayoutItemInOs);
+            var storeToDelete = os.GetObject(store);
+            os.Delete(storeToDelete);
             os.CommitChanges();
             isDefaultViewSelected = true;
             UpdateActions(null);
@@ -119,11 +195,13 @@ public class ViewVariantsController : ViewController
         SelectViewVariantAction.SelectedItem = isVariantChanged ? currentItem : lastSelectedItem;
         UpdateActionsActive();
     }
-    private void UpdateCurrentViewVariantAction_Execute(object sender, SimpleActionExecuteEventArgs e) => SaveViewVariantToXML(SelectViewVariantAction.SelectedItem.Data as ViewSettingsStore);
-    private void UpdateDefaultSettingsWithSelectedVariantAction_Execute(object sender, SimpleActionExecuteEventArgs e)
+    private void UpdateCurrentView()
     {
-        SaveViewVariantToXML(SelectViewVariantAction.SelectedItem.Data as ViewSettingsStore);
-        UpdateDefaultSettings(View.Model);
+        SaveViewVariantToXML(SelectViewVariantAction.SelectedItem?.Data as ViewSettingsStore);
+        if (SelectViewVariantAction.SelectedItem.Data as ViewSettingsStore == null) // Standard Ansicht speichern
+        {
+            UpdateDefaultSettings(View.Model);
+        }
     }
     private void View_ModelSaving(object sender, System.ComponentModel.CancelEventArgs e)
     {
@@ -178,8 +256,11 @@ public class ViewVariantsController : ViewController
         isLayoutProcessed = true;
         View.SaveModel();
         isLayoutProcessed = false;
-        store.Xml = UserDifferencesHelper.GetUserDifferences(View.Model)[""];
-        ((UnitOfWork)store.Session).CommitChanges();
+        if (store != null)
+        {
+            store.Xml = UserDifferencesHelper.GetUserDifferences(View.Model)[""];
+            ((UnitOfWork)store.Session).CommitChanges();
+        }
     }
     private void UpdateDefaultSettings(IModelView model) => defaultUserSettings = UserDifferencesHelper.GetUserDifferences(model)[""];
     private void UpdateActions(string itemToSelectCaption)
@@ -195,7 +276,7 @@ public class ViewVariantsController : ViewController
         if (SelectViewVariantAction.Items.Count > 0)
         {
             var defaultItem = new ChoiceActionItem("Standard", null);
-            SelectViewVariantAction.Items.Insert(0,defaultItem);
+            SelectViewVariantAction.Items.Insert(0, defaultItem);
             var itemToSelect = SelectViewVariantAction.Items.FindItemByID(itemToSelectCaption);
             SelectViewVariantAction.SelectedItem = (itemToSelect != null) ? itemToSelect : defaultItem;
             lastSelectedItem = SelectViewVariantAction.SelectedItem;
@@ -204,9 +285,9 @@ public class ViewVariantsController : ViewController
     }
     private void UpdateActionsActive()
     {
-        var isActive = SelectViewVariantAction.Items.Count > 0 && SelectViewVariantAction.SelectedItem.Data != null;
-        DeleteViewVariantAction.Active["HasVariants"] = isActive;
-        UpdateCurrentViewVariantAction.Active["HasVariants"] = isActive;
-        UpdateDefaultSettingsWithSelectedVariantAction.Active["HasVariants"] = isActive;
+        var store = SelectViewVariantAction.SelectedItem?.Data as ViewSettingsStore;
+        var isActive = SelectViewVariantAction.Items.Count > 0 && store != null && (store.OwnerId == currentUserId || (SecuritySystem.CurrentUser != null && (SecuritySystem.CurrentUser as ApplicationUser).IsUserInRole("Administrators")));
+        editViewVariantItem.Enabled["HasVariants"] = isActive;
+        deleteViewVariant.Enabled["HasVariants"] = isActive;
     }
 }
